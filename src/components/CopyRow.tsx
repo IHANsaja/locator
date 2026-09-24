@@ -38,8 +38,20 @@ function CheckIcon() {
   );
 }
 
-/** One coordinate, with a button that copies exactly the value shown. */
-export function CopyRow({ label, value }: { label: string; value: string | null }) {
+/** One coordinate, with a button that copies exactly the value shown.
+ * `compact` is the smaller variant used in the captured-location card. */
+export function CopyRow({
+  label,
+  value,
+  compact = false,
+  copyLabel = `Copy ${label.toLowerCase()}`,
+}: {
+  label: string;
+  value: string | null;
+  compact?: boolean;
+  /** Accessible name for the button, when two rows share a label. */
+  copyLabel?: string;
+}) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -53,10 +65,20 @@ export function CopyRow({ label, value }: { label: string; value: string | null 
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl bg-zinc-100 py-2.5 pl-4 pr-2.5 dark:bg-zinc-800">
+    <div
+      className={
+        "flex items-center justify-between gap-3 bg-zinc-100 dark:bg-zinc-800 " +
+        (compact ? "rounded-xl py-1.5 pl-3 pr-1.5" : "rounded-2xl py-2.5 pl-4 pr-2.5")
+      }
+    >
       <div className="min-w-0">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">{label}</p>
-        <p className="truncate font-mono text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+        <p
+          className={
+            "truncate font-mono font-semibold tabular-nums text-zinc-900 dark:text-zinc-50 " +
+            (compact ? "text-sm" : "text-xl")
+          }
+        >
           {value ?? "—"}
         </p>
       </div>
@@ -64,9 +86,10 @@ export function CopyRow({ label, value }: { label: string; value: string | null 
         type="button"
         onClick={onCopy}
         disabled={!value}
-        aria-label={`Copy ${label.toLowerCase()}`}
+        aria-label={copyLabel}
         className={
-          "flex h-11 shrink-0 items-center gap-1.5 rounded-xl px-4 text-sm font-semibold transition active:scale-95 disabled:opacity-40 " +
+          "flex shrink-0 items-center gap-1.5 font-semibold transition active:scale-95 disabled:opacity-40 " +
+          (compact ? "h-8 rounded-lg px-2.5 text-xs " : "h-11 rounded-xl px-4 text-sm ") +
           (copied ? "bg-emerald-600 text-white" : "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900")
         }
       >
