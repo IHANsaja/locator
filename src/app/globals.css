@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  overscroll-behavior: none;
+}
+
+/* The live position marker: a blue dot with a white ring and a soft pulse. */
+.locator-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #2563eb;
+  border: 3px solid #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+  position: relative;
+}
+
+.locator-dot::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  background: #2563eb;
+  animation: locator-pulse 2s ease-out infinite;
+  z-index: -1;
+}
+
+@keyframes locator-pulse {
+  from {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  to {
+    transform: scale(3);
+    opacity: 0;
+  }
+}
