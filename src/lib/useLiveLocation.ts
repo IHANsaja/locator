@@ -1,14 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { StationaryAverager, type Averaged } from "@/lib/averaging";
 
-export type Fix = {
-  latitude: number;
-  longitude: number;
-  /** Radius of uncertainty, in metres. */
-  accuracy: number;
-  timestamp: number;
-};
+/** The position shown: the live reading while moving, or the average of the
+ * readings taken at the current spot while standing still. */
+export type Fix = Averaged;
 
 export type LocationStatus = "starting" | "live" | "denied" | "unavailable" | "unsupported" | "insecure";
 
@@ -63,18 +60,21 @@ export function useLiveLocation() {
     let retryTimer: number | undefined;
     let current: { accuracy: number; timestamp: number } | null = null;
     let pollInFlight = false;
+    const averager = new StationaryAverager();
     let denied = false;
 
     function onPosition(pos: GeolocationPosition) {
       denied = false;
       if (!isBetter(pos, current)) return;
       current = { accuracy: pos.coords.accuracy, timestamp: pos.timestamp };
-      setFix({
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude,
-        accuracy: pos.coords.accuracy,
-        timestamp: pos.timestamp,
-      });
+      setFix(
+        averager.add({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          timestamp: pos.timestamp,
+        })
+      );
       setStatus("live");
     }
 

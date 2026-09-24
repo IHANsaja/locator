@@ -114,10 +114,13 @@ const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute:
 function AccuracyLine({ fix }: { fix: Fix | null }) {
   if (!fix) return <p className="px-1 text-xs text-zinc-500">Waiting for the first GPS fix…</p>;
   const quality = accuracyQuality(fix.accuracy);
+  const averaging = fix.samples > 1;
+  const tip = quality.tip ?? (averaging ? null : "Hold still to average readings for a steadier point.");
   return (
     <p className="px-1 text-xs text-zinc-500">
-      <span className={"font-semibold " + quality.className}>{quality.label}</span> · accurate to ±
-      {Math.round(fix.accuracy)} m{quality.tip && <span className="block pt-0.5">{quality.tip}</span>}
+      <span className={"font-semibold " + quality.className}>{quality.label}</span> · ±{Math.round(fix.accuracy)} m
+      {averaging && <> · averaging {fix.samples} readings</>}
+      {tip && <span className="block pt-0.5">{tip}</span>}
     </p>
   );
 }
@@ -132,6 +135,7 @@ function CapturedCard({ capture, onClose }: { capture: Fix; onClose: () => void 
           <p className="text-sm font-bold text-zinc-900 dark:text-zinc-50">Captured</p>
           <p className="text-xs text-zinc-500">
             {timeFormat.format(capture.timestamp)} · ±{Math.round(capture.accuracy)} m
+            {capture.samples > 1 && <> · {capture.samples} readings</>}
           </p>
         </div>
         <button
