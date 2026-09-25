@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { LocatorMap } from "@/components/LocatorMap";
-import { CopyRow } from "@/components/CopyRow";
+import { CopyButton, CopyRow, formatBoth } from "@/components/CopyRow";
 import { useLiveLocation, type Fix, type LocationStatus } from "@/lib/useLiveLocation";
 
 const HAS_MAPBOX_TOKEN = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
@@ -128,6 +128,8 @@ function AccuracyLine({ fix }: { fix: Fix | null }) {
 /** The location saved with the Capture button, pinned to the top right so it
  * stays readable (and copyable) while the live values keep changing. */
 function CapturedCard({ capture, onClose }: { capture: Fix; onClose: () => void }) {
+  const lat = capture.latitude.toFixed(DECIMALS);
+  const lng = capture.longitude.toFixed(DECIMALS);
   return (
     <div className="w-60 space-y-2 rounded-2xl bg-white p-3 shadow-xl ring-1 ring-black/5 dark:bg-zinc-900 dark:ring-white/10">
       <div className="flex items-start justify-between gap-2 px-1">
@@ -149,8 +151,17 @@ function CapturedCard({ capture, onClose }: { capture: Fix; onClose: () => void 
           </svg>
         </button>
       </div>
-      <CopyRow compact label="Latitude" value={capture.latitude.toFixed(DECIMALS)} copyLabel="Copy captured latitude" />
-      <CopyRow compact label="Longitude" value={capture.longitude.toFixed(DECIMALS)} copyLabel="Copy captured longitude" />
+      <CopyRow compact label="Latitude" value={lat} copyLabel="Copy captured latitude" />
+      <CopyRow compact label="Longitude" value={lng} copyLabel="Copy captured longitude" />
+      <div className="grid">
+        <CopyButton
+          compact
+          variant="soft"
+          label="Copy both"
+          ariaLabel="Copy captured latitude and longitude"
+          value={formatBoth(lat, lng)}
+        />
+      </div>
     </div>
   );
 }
@@ -167,6 +178,8 @@ export default function Locator() {
   const paused = pausedAt !== null;
   const fix = pausedAt ?? liveFix;
   const message = STATUS_MESSAGES[status];
+  const lat = fix ? fix.latitude.toFixed(DECIMALS) : null;
+  const lng = fix ? fix.longitude.toFixed(DECIMALS) : null;
   const updatedAgo = fix ? Math.max(0, Math.round((now - fix.timestamp) / 1000)) : null;
 
   function togglePause() {
@@ -217,9 +230,18 @@ export default function Locator() {
             </div>
           ) : (
             <>
-              <CopyRow label="Latitude" value={fix ? fix.latitude.toFixed(DECIMALS) : null} />
-              <CopyRow label="Longitude" value={fix ? fix.longitude.toFixed(DECIMALS) : null} />
-              <AccuracyLine fix={fix} />
+              <CopyRow label="Latitude" value={lat} />
+              <CopyRow label="Longitude" value={lng} />
+              <div className="flex items-start justify-between gap-3">
+                <AccuracyLine fix={fix} />
+                <CopyButton
+                  compact
+                  variant="soft"
+                  label="Copy both"
+                  ariaLabel="Copy latitude and longitude"
+                  value={lat && lng ? formatBoth(lat, lng) : null}
+                />
+              </div>
             </>
           )}
 

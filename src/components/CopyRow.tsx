@@ -38,6 +38,61 @@ function CheckIcon() {
   );
 }
 
+/** A button that copies `value` and briefly confirms with "Copied". */
+export function CopyButton({
+  value,
+  label = "Copy",
+  ariaLabel,
+  compact = false,
+  variant = "solid",
+}: {
+  value: string | null;
+  label?: string;
+  ariaLabel: string;
+  compact?: boolean;
+  /** "solid" for the per-coordinate buttons, "soft" for the quieter Copy both. */
+  variant?: "solid" | "soft";
+}) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const t = window.setTimeout(() => setCopied(false), 1500);
+    return () => window.clearTimeout(t);
+  }, [copied]);
+
+  async function onCopy() {
+    if (value && (await copyText(value))) setCopied(true);
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onCopy}
+      disabled={!value}
+      aria-label={ariaLabel}
+      className={
+        "flex shrink-0 items-center justify-center gap-1.5 font-semibold transition active:scale-95 disabled:opacity-40 " +
+        (compact ? "h-8 rounded-lg px-2.5 text-xs " : "h-11 rounded-xl px-4 text-sm ") +
+        (copied
+          ? "bg-emerald-600 text-white"
+          : variant === "soft"
+            ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50"
+            : "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900")
+      }
+    >
+      {copied ? <CheckIcon /> : <CopyIcon />}
+      {copied ? "Copied" : label}
+    </button>
+  );
+}
+
+/** Both coordinates as one string — "lat, lng", the order and format Google
+ * Maps, Apple Maps and most GIS tools accept when pasted. */
+export function formatBoth(latitude: string, longitude: string) {
+  return `${latitude}, ${longitude}`;
+}
+
 /** One coordinate, with a button that copies exactly the value shown.
  * `compact` is the smaller variant used in the captured-location card. */
 export function CopyRow({
@@ -52,18 +107,6 @@ export function CopyRow({
   /** Accessible name for the button, when two rows share a label. */
   copyLabel?: string;
 }) {
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!copied) return;
-    const t = window.setTimeout(() => setCopied(false), 1500);
-    return () => window.clearTimeout(t);
-  }, [copied]);
-
-  async function onCopy() {
-    if (value && (await copyText(value))) setCopied(true);
-  }
-
   return (
     <div
       className={
@@ -82,20 +125,7 @@ export function CopyRow({
           {value ?? "—"}
         </p>
       </div>
-      <button
-        type="button"
-        onClick={onCopy}
-        disabled={!value}
-        aria-label={copyLabel}
-        className={
-          "flex shrink-0 items-center gap-1.5 font-semibold transition active:scale-95 disabled:opacity-40 " +
-          (compact ? "h-8 rounded-lg px-2.5 text-xs " : "h-11 rounded-xl px-4 text-sm ") +
-          (copied ? "bg-emerald-600 text-white" : "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900")
-        }
-      >
-        {copied ? <CheckIcon /> : <CopyIcon />}
-        {copied ? "Copied" : "Copy"}
-      </button>
+      <CopyButton value={value} ariaLabel={copyLabel} compact={compact} />
     </div>
   );
 }
