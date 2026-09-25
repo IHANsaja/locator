@@ -3,6 +3,23 @@
 Your live latitude and longitude on a map, each with a one-tap copy button.
 The position updates continuously while the page is open.
 
+## Pins and BMICH floor plans
+
+BMICH's floor plans (every hall's GeoJSON) are drawn on the map. Tap **Pin**,
+move the map until the centre crosshair is on the spot (zoom in for
+precision), then **Drop pin**. Near a floor-plan corner the crosshair snaps to
+it and the pin takes that corner's exact coordinates. Each pin shows its hall
+and can be copied as latitude, longitude, both, or GeoJSON. Pins are saved in
+the browser.
+
+The floor data is hardcoded in `src/data/bmich-floors.json` and compiled into
+the app; nothing is fetched at runtime. To refresh it from the local Blicq
+database (Docker container `blicq-postgres`), run:
+
+```bash
+npm run export-floors
+```
+
 ## Run locally
 
 ```bash

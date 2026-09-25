@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { LocatorMap } from "@/components/LocatorMap";
+import { LocatorMap, type CrosshairPoint, type MapFocus } from "@/components/LocatorMap";
+import { Crosshair, PinDetails, PlacingPanel } from "@/components/PinPanels";
+import { BMICH_FLOORS, floorAt } from "@/lib/floors";
+import { usePins } from "@/lib/pins";
 import { CopyButton, CopyRow, formatBoth } from "@/components/CopyRow";
 import { useLiveLocation, type Fix, type LocationStatus } from "@/lib/useLiveLocation";
 
@@ -166,6 +169,15 @@ function CapturedCard({ capture, onClose }: { capture: Fix; onClose: () => void 
   );
 }
 
+function PinIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4" aria-hidden>
+      <path d="M12 3v4M12 17v4M3 12h4M17 12h4" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="4" />
+    </svg>
+  );
+}
+
 export default function Locator() {
   const { fix: liveFix, status } = useLiveLocation();
   const [following, setFollowing] = useState(true);
@@ -175,21 +187,68 @@ export default function Locator() {
   const [capture, setCapture] = useState<Fix | null>(null);
   const now = useNow(1000);
 
+  const { pins, addPin, removePin } = usePins();
+  const [placing, setPlacing] = useState(false);
+  const [crosshair, setCrosshair] = useState<CrosshairPoint | null>(null);
+  const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
+  const [focus, setFocus] = useState<MapFocus | null>(null);
+
   const paused = pausedAt !== null;
   const fix = pausedAt ?? liveFix;
   const message = STATUS_MESSAGES[status];
   const lat = fix ? fix.latitude.toFixed(DECIMALS) : null;
   const lng = fix ? fix.longitude.toFixed(DECIMALS) : null;
   const updatedAgo = fix ? Math.max(0, Math.round((now - fix.timestamp) / 1000)) : null;
+  const selectedPin = pins.find((p) => p.id === selectedPinId) ?? null;
+  const crosshairFloor = crosshair ? floorAt(BMICH_FLOORS, crosshair.longitude, crosshair.latitude) : null;
 
   function togglePause() {
     setPausedAt(paused ? null : liveFix);
   }
 
+  function startPlacing() {
+    // The map must hold still under the crosshair, not chase the live dot.
+    setFollowing(false);
+    setSelectedPinId(null);
+    setPlacing(true);
+  }
+
+  function dropPin() {
+    if (!crosshair) return;
+    const pin = addPin({
+      latitude: crosshair.latitude,
+      longitude: crosshair.longitude,
+      snapped: crosshair.snapped,
+      floor: crosshairFloor,
+    });
+    setPlacing(false);
+    setCrosshair(null);
+    setSelectedPinId(pin.id);
+  }
+
+  function selectPin(id: string) {
+    const pin = pins.find((p) => p.id === id);
+    if (!pin || placing) return;
+    setFollowing(false);
+    setSelectedPinId(id);
+    setFocus({ latitude: pin.latitude, longitude: pin.longitude, key: Date.now() });
+  }
+
   return (
     <div className="relative h-dvh w-full overflow-hidden bg-zinc-200 dark:bg-zinc-900">
       {HAS_MAPBOX_TOKEN ? (
-        <LocatorMap fix={fix} following={following} onUserPan={() => setFollowing(false)} />
+        <LocatorMap
+          fix={fix}
+          following={following}
+          onUserPan={() => setFollowing(false)}
+          floors={BMICH_FLOORS}
+          pins={pins}
+          selectedPinId={selectedPinId}
+          onSelectPin={selectPin}
+          placing={placing}
+          onCrosshair={setCrosshair}
+          focus={focus}
+        />
       ) : (
         // A deploy without the token would otherwise show a blank map. The
         // coordinates below still work without it.
@@ -198,9 +257,11 @@ export default function Locator() {
         </p>
       )}
 
+      {placing && <Crosshair snapped={crosshair?.snapped ?? false} />}
+
       <div className="absolute right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-10 flex flex-col items-end gap-3">
         {capture && <CapturedCard capture={capture} onClose={() => setCapture(null)} />}
-        {fix && !following && (
+        {fix && !following && !placing && (
           <button
             type="button"
             onClick={() => setFollowing(true)}
@@ -218,57 +279,90 @@ export default function Locator() {
 
       <section className="absolute inset-x-0 bottom-0 z-10 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto max-w-md space-y-3 rounded-3xl bg-white p-4 shadow-2xl ring-1 ring-black/5 dark:bg-zinc-900 dark:ring-white/10">
-          <div className="flex items-center justify-between px-1">
-            <h1 className="text-base font-bold text-zinc-900 dark:text-zinc-50">Locator</h1>
-            <StatusPill status={status} paused={paused} updatedAgo={updatedAgo} />
-          </div>
-
-          {message && !paused ? (
-            <div className="rounded-2xl bg-red-50 p-4 dark:bg-red-950/40">
-              <p className="font-semibold text-red-700 dark:text-red-300">{message.title}</p>
-              <p className="mt-1 text-sm text-red-700/80 dark:text-red-300/80">{message.body}</p>
-            </div>
+          {placing ? (
+            <PlacingPanel
+              point={crosshair}
+              floor={crosshairFloor}
+              onDrop={dropPin}
+              onCancel={() => {
+                setPlacing(false);
+                setCrosshair(null);
+              }}
+            />
+          ) : selectedPin ? (
+            <PinDetails
+              pin={selectedPin}
+              pins={pins}
+              onClose={() => setSelectedPinId(null)}
+              onDelete={() => {
+                removePin(selectedPin.id);
+                setSelectedPinId(null);
+              }}
+            />
           ) : (
             <>
-              <CopyRow label="Latitude" value={lat} />
-              <CopyRow label="Longitude" value={lng} />
-              <div className="flex items-start justify-between gap-3">
-                <AccuracyLine fix={fix} />
-                <CopyButton
-                  compact
-                  variant="soft"
-                  label="Copy both"
-                  ariaLabel="Copy latitude and longitude"
-                  value={lat && lng ? formatBoth(lat, lng) : null}
-                />
+              <div className="flex items-center justify-between px-1">
+                <h1 className="text-base font-bold text-zinc-900 dark:text-zinc-50">Locator</h1>
+                <StatusPill status={status} paused={paused} updatedAgo={updatedAgo} />
+              </div>
+
+              {message && !paused ? (
+                <div className="rounded-2xl bg-red-50 p-4 dark:bg-red-950/40">
+                  <p className="font-semibold text-red-700 dark:text-red-300">{message.title}</p>
+                  <p className="mt-1 text-sm text-red-700/80 dark:text-red-300/80">{message.body}</p>
+                </div>
+              ) : (
+                <>
+                  <CopyRow label="Latitude" value={lat} />
+                  <CopyRow label="Longitude" value={lng} />
+                  <div className="flex items-start justify-between gap-3">
+                    <AccuracyLine fix={fix} />
+                    <CopyButton
+                      compact
+                      variant="soft"
+                      label="Copy both"
+                      ariaLabel="Copy latitude and longitude"
+                      value={lat && lng ? formatBoth(lat, lng) : null}
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={togglePause}
+                  disabled={!paused && !liveFix}
+                  aria-pressed={paused}
+                  className={
+                    "flex h-12 items-center justify-center gap-1.5 rounded-2xl text-sm font-semibold transition active:scale-95 disabled:opacity-40 " +
+                    (paused ? "bg-amber-500 text-white" : "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50")
+                  }
+                >
+                  {paused ? <PlayIcon /> : <PauseIcon />}
+                  {paused ? "Resume" : "Pause"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fix && setCapture(fix)}
+                  disabled={!fix}
+                  className="flex h-12 items-center justify-center gap-1.5 rounded-2xl bg-blue-600 text-sm font-semibold text-white transition active:scale-95 disabled:opacity-40"
+                >
+                  <CaptureIcon />
+                  Capture
+                </button>
+                <button
+                  type="button"
+                  onClick={startPlacing}
+                  disabled={!HAS_MAPBOX_TOKEN}
+                  className="flex h-12 items-center justify-center gap-1.5 rounded-2xl bg-rose-600 text-sm font-semibold text-white transition active:scale-95 disabled:opacity-40"
+                >
+                  <PinIcon />
+                  Pin
+                </button>
               </div>
             </>
           )}
-
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={togglePause}
-              disabled={!paused && !liveFix}
-              aria-pressed={paused}
-              className={
-                "flex h-12 items-center justify-center gap-2 rounded-2xl text-sm font-semibold transition active:scale-95 disabled:opacity-40 " +
-                (paused ? "bg-amber-500 text-white" : "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50")
-              }
-            >
-              {paused ? <PlayIcon /> : <PauseIcon />}
-              {paused ? "Resume" : "Pause"}
-            </button>
-            <button
-              type="button"
-              onClick={() => fix && setCapture(fix)}
-              disabled={!fix}
-              className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 text-sm font-semibold text-white transition active:scale-95 disabled:opacity-40"
-            >
-              <CaptureIcon />
-              Capture
-            </button>
-          </div>
         </div>
       </section>
     </div>

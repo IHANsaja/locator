@@ -41,3 +41,47 @@ body {
     opacity: 0;
   }
 }
+
+/* Dropped pins: a teardrop whose tip (the element's bottom centre, where
+   Mapbox anchors it) sits exactly on the coordinates. */
+.locator-pin {
+  /* The rotated 24px square below has its tip 12*sqrt(2) = 17px under its
+     centre (14px down), so 31px tall puts the tip on the bottom edge. */
+  width: 28px;
+  height: 31px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  position: relative;
+}
+
+.locator-pin::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  transform-origin: center;
+  background: #e11d48;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.4);
+}
+
+.locator-pin span {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 6px;
+  font: 700 11px/14px var(--font-sans), system-ui, sans-serif;
+  color: #fff;
+  text-align: center;
+}
+
+.locator-pin.is-selected::before {
+  background: #7c3aed;
+  box-shadow: 0 0 0 4px rgb(124 58 237 / 0.35), 0 1px 4px rgb(0 0 0 / 0.4);
+}
