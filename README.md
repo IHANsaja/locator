@@ -13,8 +13,10 @@ and can be copied as latitude, longitude, both, or GeoJSON. Pins are saved in
 the browser.
 
 The floor data is hardcoded in `src/data/bmich-floors.json` and compiled into
-the app; nothing is fetched at runtime. To refresh it from the local Blicq
-database (Docker container `blicq-postgres`), run:
+the app; nothing is fetched at runtime. It comes from the Blicq public API's
+venue details for the book-fair exhibition
+(`GET /v1/public/exhibitions/{id}/venue-details` on api.lab.blicq.net). To
+refresh it, run:
 
 ```bash
 npm run export-floors

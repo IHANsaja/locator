@@ -1,56 +1,40 @@
-// Regenerates the hardcoded floor GeoJSON in src/data/<slug>-floors.json from
-// the local Blicq Postgres (Docker). A development helper only: the app
-// imports that file directly (compiled into the bundle) and never talks to
-// the database or any API.
+// Regenerates the hardcoded floor GeoJSON in src/data/bmich-floors.json from
+// the Blicq public API's venue details for the book-fair exhibition. A
+// development helper only: the app imports that file directly (compiled into
+// the bundle) and makes no requests at runtime.
 //
-//   npm run export-floors                 # BMICH, from container blicq-postgres
-//   npm run export-floors -- "Venue name" # another venue
+//   npm run export-floors
 //
-// Env overrides: PG_CONTAINER (default blicq-postgres), PG_USER (postgres),
-// PG_DB (blicq1).
+// Env overrides: API_BASE_URL (default https://api.lab.blicq.net/v1),
+// EXHIBITION_ID (default: Colombo International Book Fair 2026 at BMICH).
 
-import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const venueName = process.argv[2] ?? "BMICH";
-const container = process.env.PG_CONTAINER ?? "blicq-postgres";
-const user = process.env.PG_USER ?? "postgres";
-const db = process.env.PG_DB ?? "blicq1";
+const apiBase = (process.env.API_BASE_URL ?? "https://api.lab.blicq.net/v1").replace(/\/$/, "");
+const exhibitionId = process.env.EXHIBITION_ID ?? "f125ab2f-46de-4dc0-af9f-0e0d717df564";
+const url = `${apiBase}/public/exhibitions/${exhibitionId}/venue-details`;
 
-// Single-quoted SQL literal, so a venue name can't break out of the query.
-const literal = `'${venueName.replace(/'/g, "''")}'`;
-
-// Soft-deleted floors are skipped (BMICH has an old deleted copy of Hall-D).
-const sql = `
-select json_build_object(
-  'venue', json_build_object('id', v.id, 'name', v.name, 'latitude', v.latitude, 'longitude', v.longitude),
-  'floors', coalesce((
-    select json_agg(json_build_object('id', f.id, 'name', f.name, 'geojson', f.json) order by f.name)
-    from venue_floors f
-    where f.venue_id = v.id and f.deleted_at is null
-  ), '[]'::json)
-)
-from venues v
-where v.name = ${literal} and v.deleted_at is null
-limit 1;`;
-
-const out = execFileSync("docker", ["exec", "-i", container, "psql", "-U", user, "-d", db, "-At", "-c", sql], {
-  encoding: "utf8",
-  maxBuffer: 64 * 1024 * 1024,
-}).trim();
-
-if (!out) {
-  console.error(`No venue named "${venueName}" in ${db}.`);
+const res = await fetch(url);
+if (!res.ok) {
+  console.error(`GET ${url} failed: ${res.status} ${res.statusText}`);
   process.exit(1);
 }
+const venue = await res.json();
 
-const data = JSON.parse(out);
-const slug = venueName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-const file = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "data", `${slug}-floors.json`);
+// Only what the map needs — the response also carries every stall with its
+// business details, which the app doesn't use.
+const data = {
+  venue: { id: venue.id, name: venue.name, latitude: venue.latitude, longitude: venue.longitude },
+  floors: venue.floors
+    .filter((f) => f.json?.type === "FeatureCollection")
+    .map((f) => ({ id: f.id, name: f.name, geojson: f.json })),
+};
+
+const file = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "data", "bmich-floors.json");
 mkdirSync(dirname(file), { recursive: true });
 writeFileSync(file, JSON.stringify(data) + "\n");
 
-const features = data.floors.reduce((n, f) => n + (f.geojson?.features?.length ?? 0), 0);
+const features = data.floors.reduce((n, f) => n + f.geojson.features.length, 0);
 console.log(`Wrote ${data.floors.length} floors (${features} features) for ${data.venue.name} to ${file}`);
